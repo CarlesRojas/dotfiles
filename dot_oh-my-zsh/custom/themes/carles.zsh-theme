@@ -4,10 +4,11 @@
 export VIRTUAL_ENV_DISABLE_PROMPT=1
 
 # Colors
-local C_TIME="#D4A5FF"
-local C_VENV="#FFD6A5"
-local C_PATH="#FFB5B5"
-local C_GIT="#A5F0E4"
+local C_TIME="#4881AC"
+local C_VENV="#86BBD8"
+local C_GIT="#758E4F"
+local C_PATH="#C97A41"
+
 local C_BLACK="#000000"
 local C_OK="#A5F0E4"
 local C_ERR="#FF5555"
