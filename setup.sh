@@ -12,9 +12,23 @@ if [ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]; then
     ZSH= sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 fi
 
-# Install OMZ plugins
-git clone https://github.com/zsh-users/zsh-autosuggestions "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
-git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
+
+# Install OMZ plugins idempotently
+PLUGIN_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
+
+# zsh-autosuggestions
+if [ ! -d "$PLUGIN_DIR/zsh-autosuggestions" ]; then
+    git clone https://github.com/zsh-users/zsh-autosuggestions "$PLUGIN_DIR/zsh-autosuggestions"
+else
+    git -C "$PLUGIN_DIR/zsh-autosuggestions" pull || true
+fi
+
+# zsh-syntax-highlighting
+if [ ! -d "$PLUGIN_DIR/zsh-syntax-highlighting" ]; then
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$PLUGIN_DIR/zsh-syntax-highlighting"
+else
+    git -C "$PLUGIN_DIR/zsh-syntax-highlighting" pull || true
+fi
 
 # Install zoxide (cd replacement)
 curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
