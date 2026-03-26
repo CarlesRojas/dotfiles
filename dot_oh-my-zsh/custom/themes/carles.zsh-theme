@@ -4,10 +4,10 @@
 export VIRTUAL_ENV_DISABLE_PROMPT=1
 
 # Colors
-local C_TIME="#4881AC"
-local C_VENV="#86BBD8"
-local C_GIT="#758E4F"
-local C_PATH="#C97A41"
+local C_FIRST="#558CB6"
+local C_SECOND="#86BBD8"
+local C_THIRD="#758E4F"
+local C_FOURTH="#C97A41"
 
 local C_BLACK="#000000"
 local C_OK="#A5F0E4"
@@ -27,13 +27,13 @@ separator_end() {
 carles_venv_prompt() {
   if [[ -n "$VIRTUAL_ENV" ]]; then
     local venv_name=$(basename "$VIRTUAL_ENV")
-    echo "$(separator $C_TIME $C_VENV)%{%F{$C_BLACK}%} 0 $venv_name "
+    echo "$(separator $C_FIRST $C_SECOND)%{%F{$C_BLACK}%} 0 $venv_name "
   fi
 }
 
 carles_git_prompt() {
-  local prev_color=$C_TIME
-  [[ -n "$VIRTUAL_ENV" ]] && prev_color=$C_VENV
+  local prev_color=$C_FIRST
+  [[ -n "$VIRTUAL_ENV" ]] && prev_color=$C_SECOND
 
   local branch=$(git symbolic-ref --short HEAD 2>/dev/null)
   if [[ -n "$branch" ]]; then
@@ -41,12 +41,12 @@ carles_git_prompt() {
     if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
       dirty=" ●"
     fi
-    echo "$(separator $prev_color $C_GIT)%{%F{$C_BLACK}%}  $branch$dirty $(separator $C_GIT $C_PATH)"
+    echo "$(separator $prev_color $C_THIRD)%{%F{$C_BLACK}%} 󰉖 %1~ $(separator $C_THIRD $C_FOURTH)%{%F{$C_BLACK}%}  $branch$dirty "
   else
-    echo "$(separator $prev_color $C_PATH)"
+    echo "$(separator $prev_color $C_FOURTH)%{%F{$C_BLACK}%} 󰉖 %1~ "
   fi
 }
 
-PROMPT='%{%K{$C_TIME}%F{$C_BLACK}%}  %* $(carles_venv_prompt)$(carles_git_prompt)%{%F{$C_BLACK}%} 󰉖 %1~ $(separator_end $C_PATH)%{%f%k%} '
+PROMPT='%{%K{$C_FIRST}%F{$C_BLACK}%}  %* $(carles_venv_prompt)$(carles_git_prompt)$(separator_end $C_FOURTH)%{%f%k%} '
 
 RPROMPT='%(?.%{%F{$C_OK}%}✓.%{%F{$C_ERR}%}✗ %?) %{%f%}'
