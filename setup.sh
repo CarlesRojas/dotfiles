@@ -4,14 +4,13 @@ set -euxo pipefail
 # Install chezmoi
 sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
 
+sudo chsh "$(id -un)" --shell "/usr/bin/zsh"
+
 # Install Oh My Zsh
 if [ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]; then
     rm -rf "$HOME/.oh-my-zsh"
     ZSH= sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 fi
-
-# Set default shell to zsh
-sudo chsh "$(id -un)" --shell "/usr/bin/zsh"
 
 # Install OMZ plugins
 git clone https://github.com/zsh-users/zsh-autosuggestions "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"

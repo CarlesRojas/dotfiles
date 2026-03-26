@@ -47,6 +47,6 @@ carles_git_prompt() {
   fi
 }
 
-PROMPT='%{%K{$C_FIRST}%F{$C_BLACK}%}  %* $(carles_venv_prompt)$(carles_git_prompt)$(separator_end $C_FOURTH)%{%f%k%} '
+PROMPT='%{%K{$C_FIRST}%F{$C_BLACK}%}  %* $(carles_venv_prompt)$(carles_git_prompt)$(separator_end $C_FOURTH)%{%f%k%} %(?.%{%F{$C_OK}%}✓.%{%F{$C_ERR}%}✗%{%f%}) '
 
-RPROMPT='%(?.%{%F{$C_OK}%}✓.%{%F{$C_ERR}%}✗ %?) %{%f%}'
+RPROMPT=''
