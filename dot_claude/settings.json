@@ -1,0 +1,30 @@
+{
+    "env": {
+        "ENABLE_LSP_TOOL": "1"
+    },
+    "permissions": {
+        "allow": [
+            "Read",
+            "Glob",
+            "Grep",
+            "LS",
+            "WebFetch",
+            "Bash(git status)",
+            "Bash(git diff *)",
+            "Bash(ls *)",
+            "Bash(pwd)",
+            "Bash(npm test)",
+            "Bash(sed *)"
+        ],
+        "defaultMode": "acceptEdits"
+    },
+    "model": "claude-opus-4-6",
+    "enabledPlugins": {
+        "pyright-lsp@claude-plugins-official": true,
+        "typescript-lsp@claude-plugins-official": true,
+        "swift-lsp@claude-plugins-official": true
+    },
+    "effortLevel": "high",
+    "autoUpdatesChannel": "latest",
+    "appendSystemPrompt": "CRITICAL: Always be concise and clear in your responses. Grill me with questions to understand my needs better."
+}
