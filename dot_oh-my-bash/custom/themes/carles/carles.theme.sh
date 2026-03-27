@@ -21,19 +21,26 @@ _FG_ERR='\[\e[38;2;255;85;85m\]'
 
 _RESET='\[\e[0m\]'
 
+# Nerd Font icons (UTF-8 encoded for bash 3.2 compatibility)
+_SEP_RIGHT=$'\xEE\x82\xB0'    # U+E0B0
+_ICON_CLOCK=$'\xEF\x80\x97'       # U+F017
+_ICON_FOLDER=$'\xF3\xB0\x89\x96'  # U+F0256 󰉖
+_ICON_VENV=$'\xEF\x91\x90'        # from zsh theme
+_ICON_BRANCH=$'\xEE\x9C\xA5'      # from zsh theme
+
 _omb_theme_PROMPT_COMMAND() {
   local last_status=$?
   local PR=""
 
   # Time segment (blue bg)
-  PR+="${_BG_FIRST}${_FG_BLACK}  \\t "
+  PR+="${_BG_FIRST}${_FG_BLACK} ${_ICON_CLOCK} \\t "
 
   # Venv segment
   if [[ -n "${VIRTUAL_ENV:-}" ]]; then
     local venv_name
     venv_name=$(basename "$VIRTUAL_ENV")
-    PR+="${_BG_BLACK}${_FG_FIRST}${_BG_SECOND}${_FG_BLACK}"
-    PR+="${_FG_BLACK}  ${venv_name} "
+    PR+="${_BG_BLACK}${_FG_FIRST}${_SEP_RIGHT}${_BG_SECOND}${_FG_BLACK}${_SEP_RIGHT}"
+    PR+="${_FG_BLACK} ${_ICON_VENV} ${venv_name} "
     local sep_fg="${_FG_SECOND}"
   else
     local sep_fg="${_FG_FIRST}"
@@ -48,15 +55,15 @@ _omb_theme_PROMPT_COMMAND() {
     if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
       dirty=" ●"
     fi
-    PR+="${_BG_BLACK}${sep_fg}${_BG_THIRD}${_FG_BLACK}"
-    PR+="${_FG_BLACK} 󰉖 \\W "
-    PR+="${_BG_BLACK}${_FG_THIRD}${_BG_FOURTH}${_FG_BLACK}"
-    PR+="${_FG_BLACK}  ${branch}${dirty} "
-    PR+="${_RESET}${_FG_FOURTH}${_RESET}"
+    PR+="${_BG_BLACK}${sep_fg}${_SEP_RIGHT}${_BG_THIRD}${_FG_BLACK}${_SEP_RIGHT}"
+    PR+="${_FG_BLACK} ${_ICON_FOLDER} \\W "
+    PR+="${_BG_BLACK}${_FG_THIRD}${_SEP_RIGHT}${_BG_FOURTH}${_FG_BLACK}${_SEP_RIGHT}"
+    PR+="${_FG_BLACK} ${_ICON_BRANCH} ${branch}${dirty} "
+    PR+="${_RESET}${_FG_FOURTH}${_SEP_RIGHT}${_RESET}"
   else
-    PR+="${_BG_BLACK}${sep_fg}${_BG_FOURTH}${_FG_BLACK}"
-    PR+="${_FG_BLACK} 󰉖 \\W "
-    PR+="${_RESET}${_FG_FOURTH}${_RESET}"
+    PR+="${_BG_BLACK}${sep_fg}${_SEP_RIGHT}${_BG_FOURTH}${_FG_BLACK}${_SEP_RIGHT}"
+    PR+="${_FG_BLACK} ${_ICON_FOLDER} \\W "
+    PR+="${_RESET}${_FG_FOURTH}${_SEP_RIGHT}${_RESET}"
   fi
 
   # Status icon
