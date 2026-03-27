@@ -32,8 +32,10 @@ _omb_theme_PROMPT_COMMAND() {
   local last_status=$?
   local PR=""
 
-  # Time segment (blue bg)
-  PR+="${_BG_FIRST}${_FG_BLACK} ${_ICON_CLOCK} \\t "
+  # Time segment (blue bg) — strip leading zero from hours
+  local _time
+  _time=$(date '+%-H:%M:%S')
+  PR+="${_BG_FIRST}${_FG_BLACK} ${_ICON_CLOCK} ${_time} "
 
   # Venv segment
   if [[ -n "${VIRTUAL_ENV:-}" ]]; then

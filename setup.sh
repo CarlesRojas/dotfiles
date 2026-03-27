@@ -36,13 +36,6 @@ if [ ! -f "$HOME/.oh-my-bash/oh-my-bash.sh" ]; then
     OSH= bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)" "" --unattended
 fi
 
-# Install ble.sh (autosuggestions + syntax highlighting for bash)
-if [ ! -d "$HOME/.local/share/blesh" ]; then
-    git clone --recursive --depth 1 --shallow-submodules https://github.com/akinomyoga/ble.sh.git /tmp/blesh-build
-    make -C /tmp/blesh-build install PREFIX="$HOME/.local"
-    rm -rf /tmp/blesh-build
-fi
-
 # Install zoxide (cd replacement)
 curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
 
