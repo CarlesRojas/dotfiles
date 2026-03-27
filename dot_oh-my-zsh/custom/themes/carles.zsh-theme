@@ -27,7 +27,7 @@ separator_end() {
 carles_venv_prompt() {
   if [[ -n "$VIRTUAL_ENV" ]]; then
     local venv_name=$(basename "$VIRTUAL_ENV")
-    echo "$(separator $C_FIRST $C_SECOND)%{%F{$C_BLACK}%} 0 $venv_name "
+    echo "$(separator $C_FIRST $C_SECOND)%{%F{$C_BLACK}%}  $venv_name "
   fi
 }
 
