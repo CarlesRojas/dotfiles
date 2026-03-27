@@ -14,20 +14,33 @@ fi
 
 
 # Install OMZ plugins idempotently
-PLUGIN_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
+OMZ_PLUGIN_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
 
 # zsh-autosuggestions
-if [ ! -d "$PLUGIN_DIR/zsh-autosuggestions" ]; then
-    git clone https://github.com/zsh-users/zsh-autosuggestions "$PLUGIN_DIR/zsh-autosuggestions"
+if [ ! -d "$OMZ_PLUGIN_DIR/zsh-autosuggestions" ]; then
+    git clone https://github.com/zsh-users/zsh-autosuggestions "$OMZ_PLUGIN_DIR/zsh-autosuggestions"
 else
-    git -C "$PLUGIN_DIR/zsh-autosuggestions" pull || true
+    git -C "$OMZ_PLUGIN_DIR/zsh-autosuggestions" pull || true
 fi
 
 # zsh-syntax-highlighting
-if [ ! -d "$PLUGIN_DIR/zsh-syntax-highlighting" ]; then
-    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$PLUGIN_DIR/zsh-syntax-highlighting"
+if [ ! -d "$OMZ_PLUGIN_DIR/zsh-syntax-highlighting" ]; then
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$OMZ_PLUGIN_DIR/zsh-syntax-highlighting"
 else
-    git -C "$PLUGIN_DIR/zsh-syntax-highlighting" pull || true
+    git -C "$OMZ_PLUGIN_DIR/zsh-syntax-highlighting" pull || true
+fi
+
+# Install Oh My Bash
+if [ ! -f "$HOME/.oh-my-bash/oh-my-bash.sh" ]; then
+    rm -rf "$HOME/.oh-my-bash"
+    OSH= bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)" "" --unattended
+fi
+
+# Install ble.sh (autosuggestions + syntax highlighting for bash)
+if [ ! -d "$HOME/.local/share/blesh" ]; then
+    git clone --recursive --depth 1 --shallow-submodules https://github.com/akinomyoga/ble.sh.git /tmp/blesh-build
+    make -C /tmp/blesh-build install PREFIX="$HOME/.local"
+    rm -rf /tmp/blesh-build
 fi
 
 # Install zoxide (cd replacement)

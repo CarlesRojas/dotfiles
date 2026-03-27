@@ -1,0 +1,19 @@
+export OSH="$HOME/.oh-my-bash"
+
+OSH_THEME="carles"
+
+ZOXIDE_CMD_OVERRIDE=cd
+
+plugins=(
+	git
+	zoxide
+)
+
+source "$OSH/oh-my-bash.sh"
+
+# ble.sh — autosuggestions + syntax highlighting for bash
+[[ -f "$HOME/.local/share/blesh/ble.sh" ]] && source "$HOME/.local/share/blesh/ble.sh"
+
+export LANG=en_US.UTF-8
+export EDITOR='vim'
+export PATH="$HOME/.local/bin:$PATH"
