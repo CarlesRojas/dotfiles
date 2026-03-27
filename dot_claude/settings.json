@@ -26,5 +26,5 @@
     },
     "effortLevel": "high",
     "autoUpdatesChannel": "latest",
-    "appendSystemPrompt": "CRITICAL: Always be concise and clear in your responses. Grill me with questions to understand my needs better."
+    "appendSystemPrompt": "CRITICAL: Always be concise and clear in your responses. Grill me with questions to understand my needs better. Always prioritize using LSP tools over other approaches (e.g., grep, reading files) when LSP can provide more accurate results, such as for finding references, go-to-definition, diagnostics, renaming symbols, etc."
 }
