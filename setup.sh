@@ -44,4 +44,9 @@ npm i -g pyright
 npm i -g typescript-language-server typescript
 
 # Apply dotfiles (dot_claude/ -> ~/.claude/, etc.)
-"$HOME/.local/bin/chezmoi" init --apply "$GITHUB_USER"
+# In Codespaces $GITHUB_USER is set automatically; locally, apply from this repo's directory.
+if [ -n "${GITHUB_USER:-}" ]; then
+    "$HOME/.local/bin/chezmoi" init --apply "$GITHUB_USER"
+else
+    "$HOME/.local/bin/chezmoi" init --apply --source "$(cd "$(dirname "$0")" && pwd)"
+fi
