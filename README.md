@@ -21,7 +21,7 @@ Codespaces will automatically run `setup.sh` on creation.
 ### Local machine
 
 ```bash
-git clone https://github.com/<your-username>/dotfiles ~/dotfiles
+git clone https://github.com/CarlesRojas/dotfiles ~/dotfiles
 cd ~/dotfiles
 bash setup.sh
 ```
