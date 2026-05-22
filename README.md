@@ -38,7 +38,8 @@ This opens a browser — sign in with your work SSO through claude.ai. No API ke
 
 ```
 dotfiles/
-├── setup.sh                              # Entry point for Codespaces
+├── setup.sh                              # Entry point for Codespaces and local
+├── dot_gitconfig                         → ~/.gitconfig
 ├── dot_zshrc                             → ~/.zshrc
 ├── dot_claude/
 │   └── settings.json                     → ~/.claude/settings.json
