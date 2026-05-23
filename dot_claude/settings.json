@@ -4,26 +4,14 @@
         "ENABLE_LSP_TOOL": "1"
     },
     "permissions": {
-        "allow": [
-            "Read",
-            "Glob",
-            "Grep",
-            "LS",
-            "WebFetch",
-            "Bash(git status)",
-            "Bash(git diff *)",
-            "Bash(ls *)",
-            "Bash(pwd)",
-            "Bash(npm test)",
-            "Bash(sed *)"
-        ],
-        "defaultMode": "acceptEdits"
+        "defaultMode": "bypassPermissions"
     },
     "model": "claude-opus-4-6",
     "enabledPlugins": {
         "pyright-lsp@claude-plugins-official": true,
         "typescript-lsp@claude-plugins-official": true,
-        "swift-lsp@claude-plugins-official": true
+        "swift-lsp@claude-plugins-official": true,
+        "kotlin-lsp@claude-plugins-official": true
     },
 "autoUpdatesChannel": "latest",
     "appendSystemPrompt": "CRITICAL: Always be concise and clear in your responses. Grill me with questions to understand my needs better. Always prioritize using LSP tools over other approaches (e.g., grep, reading files) when LSP can provide more accurate results, such as for finding references, go-to-definition, diagnostics, renaming symbols, etc."
