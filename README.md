@@ -41,6 +41,18 @@ claude auth login
 
 This opens a browser — sign in with your work SSO through claude.ai. No API key needed.
 
+## Connect from the Claude Code desktop app over SSH
+
+New Codespaces get new names, so the host entries that `gh codespace ssh --config` writes change every time. Instead, run this once on your Mac:
+
+```bash
+./setup-ssh.sh
+```
+
+It installs and logs in `gh` if needed, creates the `~/.ssh/codespaces.auto` key, and adds a `Host codespace` entry to `~/.ssh/config`. That entry asks `gh` for your most recently used Codespace each time you connect, so it never needs editing. In the Claude Code desktop app add an SSH connection with host `codespace` and leave port and identity file empty. From a terminal, `ssh codespace` does the same.
+
+`setup.sh` also pre-installs Claude Code on the Codespace; the desktop app would otherwise install it on first connect.
+
 ## Claude Code skills
 
 Personal skills live at `~/.claude/skills/<skill-name>/SKILL.md` on the machine where Claude Code runs. To ship them to Codespaces, copy each skill folder from your Mac into `dot_claude/skills/`:
@@ -56,8 +68,9 @@ chezmoi copies `dot_claude/skills/` to `~/.claude/skills/` when `setup.sh` runs.
 ```
 dotfiles/
 ├── setup.sh                              # Entry point for Codespaces and local
+├── setup-ssh.sh                          # Run once on the Mac: stable `ssh codespace` alias
 ├── dot_zshrc                             → ~/.zshrc
-├── .chezmoiignore                        # Keeps README.md and setup.sh out of ~
+├── .chezmoiignore                        # Keeps README.md and the setup scripts out of ~
 ├── dot_claude/
 │   ├── settings.json                     → ~/.claude/settings.json
 │   └── skills/<skill-name>/SKILL.md      → ~/.claude/skills/<skill-name>/SKILL.md

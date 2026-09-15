@@ -1,3 +1,4 @@
 # Files chezmoi must not copy into $HOME. Everything else (dot_*) is applied.
 README.md
 setup.sh
+setup-ssh.sh

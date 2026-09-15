@@ -56,3 +56,9 @@ if [ -n "${GITHUB_USER:-}" ]; then
 else
     "$HOME/.local/bin/chezmoi" init --apply --source "$(cd "$(dirname "$0")" && pwd)"
 fi
+
+# Install Claude Code so the desktop app's SSH mode finds it on first connect
+# (the app would otherwise install it itself). Native installer, goes to ~/.local/bin.
+if ! command -v claude >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/claude" ]; then
+    curl -fsSL https://claude.ai/install.sh | bash || echo "warning: Claude Code install failed; the desktop app will install it on first connect"
+fi
