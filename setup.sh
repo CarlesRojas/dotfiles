@@ -49,12 +49,13 @@ if [ -n "${CODESPACES:-}" ]; then
     git config --global user.email "carles.rojas@rover.com"
 fi
 
-# Apply dotfiles (dot_claude/ -> ~/.claude/, etc.)
+# Apply dotfiles (dot_claude/ -> ~/.claude/, etc.). --force overwrites files changed
+# since the last apply without prompting; Codespace creation has no terminal to answer.
 # In Codespaces $GITHUB_USER is set automatically; locally, apply from this repo's directory.
 if [ -n "${GITHUB_USER:-}" ]; then
-    "$HOME/.local/bin/chezmoi" init --apply "$GITHUB_USER"
+    "$HOME/.local/bin/chezmoi" init --apply --force "$GITHUB_USER"
 else
-    "$HOME/.local/bin/chezmoi" init --apply --source "$(cd "$(dirname "$0")" && pwd)"
+    "$HOME/.local/bin/chezmoi" init --apply --force --source "$(cd "$(dirname "$0")" && pwd)"
 fi
 
 # Install Claude Code so the desktop app's SSH mode finds it on first connect
