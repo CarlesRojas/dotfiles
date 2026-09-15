@@ -1,5 +1,4 @@
 {
-    "claudeUrl": "https://claude.ai",
     "env": {
         "ENABLE_LSP_TOOL": "1"
     },
