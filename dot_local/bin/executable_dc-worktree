@@ -9,7 +9,9 @@
 #
 # Only one worktree can hold `web` at a time. A lock serializes threads: `up`
 # waits for it (or fails with --no-wait) and `release` frees it and points `web`
-# back at the main checkout. Always run `release` when done.
+# back at the main checkout. Always run `release` when done. A lock not refreshed
+# for 15 min is taken as abandoned; running `up` again from the holding worktree
+# refreshes it.
 #
 #   dc-worktree up [--no-wait]   serve the current worktree
 #   dc-worktree release          give `web` back to the main checkout
@@ -18,7 +20,7 @@ set -euo pipefail
 
 MAIN=/workspaces/web
 LOCK=/tmp/dc-worktree.lock
-STALE_SECONDS=$((45 * 60))
+STALE_SECONDS=$((15 * 60))
 WAIT_SECONDS=$((30 * 60))
 
 die() { echo "dc-worktree: $*" >&2; exit 1; }
