@@ -2,10 +2,3 @@
 README.md
 setup.sh
 setup-ssh.sh
-
-# In Roverspaces (Coder workspaces, CODER=true), Roverspaces and claude-sync manage
-# ~/.claude/, so the Claude settings and skills here are not applied there.
-{{ if env "CODER" }}
-.claude
-.claude/**
-{{ end }}

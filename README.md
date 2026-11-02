@@ -1,11 +1,10 @@
 # Dotfiles
 
-Personal dotfiles for GitHub Codespaces and local machines.
+Personal dotfiles for Roverspaces, GitHub Codespaces and local machines.
 
 ## What's included
 
-- **Claude Code** — LSP plugins (Pyright, TypeScript, Swift) with pre-configured permissions, connected to Claude Enterprise via claude.ai OAuth
-- **Claude Code personal skills** — `dot_claude/skills/` is copied to `~/.claude/skills/`, so personal skills are available in every Codespace without committing them to a project repo
+- **LSP servers for Claude Code** — Pyright and the TypeScript language server, installed globally with npm
 - **Oh My Zsh** — with zsh-autosuggestions, zsh-syntax-highlighting, and zoxide
 - **Custom ZSH theme** — powerline-style prompt: `[time] [path] [git branch]` (pastel macaron palette)
 
@@ -43,10 +42,7 @@ This opens a browser — sign in with your work SSO through claude.ai. No API ke
 
 ### Roverspaces
 
-Add this repo as your dotfiles repo in Roverspaces **Settings**. Roverspaces runs on Coder, which sets `CODER=true` in every workspace. When that variable is set:
-
-- `dot_claude/` is **not** applied (see `.chezmoiignore`). Roverspaces and claude-sync manage `~/.claude/` there, and the settings here (pinned model, interactive system prompt) would get in the way of unattended sessions.
-- Everything else (zsh, themes, zoxide, LSP servers) is applied as usual.
+Add this repo as your dotfiles repo in Roverspaces **Settings**.
 
 `setup.sh` does not stop on the first error: a failed step prints a `warning:` line and the rest of the setup still runs.
 
@@ -62,27 +58,26 @@ It installs and logs in `gh` if needed, creates the `~/.ssh/codespaces.auto` key
 
 `setup.sh` also pre-installs Claude Code on the Codespace; the desktop app would otherwise install it on first connect.
 
-## Claude Code skills
+## Claude Code settings and skills
 
-Personal skills live at `~/.claude/skills/<skill-name>/SKILL.md` on the machine where Claude Code runs. To ship them to Codespaces, copy each skill folder from your Mac into `dot_claude/skills/`:
+This repo does not manage `~/.claude/`. Claude Code settings, skills and plugins come from [claude-sync](https://github.com/roverdotcom/claude-sync), which copies your Mac's setup into Roverspaces workspaces and Codespaces:
 
 ```bash
-cp -R ~/.claude/skills/<skill-name> dot_claude/skills/
+uv tool install git+https://github.com/roverdotcom/claude-sync.git
+claude-sync login
 ```
-
-chezmoi copies `dot_claude/skills/` to `~/.claude/skills/` when `setup.sh` runs. Only files present in this repo are written; other files in `~/.claude/` are left alone. Skills committed in a project's own `.claude/skills/` are unaffected and load alongside these.
 
 ## Structure
 
 ```
 dotfiles/
-├── setup.sh                              # Entry point for Codespaces and local
+├── setup.sh                              # Entry point for Roverspaces, Codespaces and local
 ├── setup-ssh.sh                          # Run once on the Mac: stable `ssh codespace` alias
 ├── dot_zshrc                             → ~/.zshrc
+├── dot_bashrc                            → ~/.bashrc
 ├── .chezmoiignore                        # Keeps README.md and the setup scripts out of ~
-├── dot_claude/
-│   ├── settings.json                     → ~/.claude/settings.json
-│   └── skills/<skill-name>/SKILL.md      → ~/.claude/skills/<skill-name>/SKILL.md
+├── dot_oh-my-bash/custom/themes/carles/
+│   └── carles.theme.sh                   → ~/.oh-my-bash/custom/themes/carles/
 └── dot_oh-my-zsh/custom/themes/
     └── carles.zsh-theme                  → ~/.oh-my-zsh/custom/themes/
 ```

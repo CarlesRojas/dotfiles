@@ -5,12 +5,6 @@ set -uxo pipefail
 
 warn() { echo "warning: $*" >&2; }
 
-# Roverspaces workspaces run on Coder, which sets CODER=true. There, Roverspaces and
-# claude-sync own ~/.claude/, so .chezmoiignore skips dot_claude/ (see that file).
-if [ -n "${CODER:-}" ]; then
-    echo "Running inside a Coder workspace (Roverspaces): leaving ~/.claude/ alone"
-fi
-
 # Install chezmoi
 sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin" || warn "chezmoi install failed"
 
@@ -67,7 +61,7 @@ if [ -n "${CODESPACES:-}" ]; then
     git config --global user.email "carles.rojas@rover.com"
 fi
 
-# Apply dotfiles (dot_claude/ -> ~/.claude/, etc.) from this checkout. Codespaces clones
+# Apply dotfiles (dot_zshrc -> ~/.zshrc, etc.) from this checkout. Codespaces clones
 # the repo to /workspaces/.codespaces/.persistedshare/dotfiles and runs this script from
 # there, so a second clone via GitHub is not needed and cannot go stale. --force overwrites
 # files changed since the last apply without prompting (Codespace creation has no terminal).
