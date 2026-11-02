@@ -77,3 +77,17 @@ fi
 if ! command -v claude >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/claude" ]; then
     curl -fsSL https://claude.ai/install.sh | bash || warn "Claude Code install failed; the desktop app will install it on first connect"
 fi
+
+# T3 Code over SSH (Linux remotes only: Roverspaces, Codespaces).
+# T3 launches `claude` from a non-interactive shell that doesn't load ~/.local/bin,
+# so link it somewhere on the default PATH, and preinstall the T3 server so the
+# first connection from the desktop app doesn't have to install it.
+if [ "$(uname -s)" = "Linux" ]; then
+    if [ -x "$HOME/.local/bin/claude" ]; then
+        sudo -n ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude \
+            || warn "could not link claude into /usr/local/bin"
+    fi
+    if ! command -v t3 >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/t3" ]; then
+        curl -fsSL https://t3.codes/install.sh | sh || warn "T3 Code server install failed"
+    fi
+fi
