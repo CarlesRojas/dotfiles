@@ -126,5 +126,5 @@ case "${1:-}" in
   up) shift; cmd_up "$@" ;;
   release|reset) cmd_release ;;
   status) cmd_status ;;
-  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
