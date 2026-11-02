@@ -79,11 +79,16 @@ served_dir() {
   local id
   id=$(docker compose -p web ps -q web 2>/dev/null | head -n1)
   [ -n "$id" ] || { echo "(web is not running)"; return; }
-  # `web` has several bind mounts (source subfolders, plus the secrets cache and
-  # static files from main), so report the checkout most of them come from.
-  local root
-  root=$(docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$id" \
-    | grep -oE '^/workspaces/[^/]+' | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')
+  # `web` has several bind mounts (source folders, plus the secrets cache and
+  # static files that always come from main), so report the git checkout most of
+  # them belong to. Worktrees can live anywhere (T3 puts them in ~/.t3/worktrees).
+  local src dir top root
+  root=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Source}}{{end}}{{end}}' "$id" \
+    | while IFS= read -r src; do
+        [ -n "$src" ] || continue
+        dir=$src; [ -d "$dir" ] || dir=$(dirname "$dir")
+        top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) && echo "$top"
+      done | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')
   echo "${root:-(unknown)}"
 }
 
