@@ -41,6 +41,15 @@ claude auth login
 
 This opens a browser — sign in with your work SSO through claude.ai. No API key needed.
 
+### Roverspaces
+
+Add this repo as your dotfiles repo in Roverspaces **Settings**. Roverspaces runs on Coder, which sets `CODER=true` in every workspace. When that variable is set:
+
+- `dot_claude/` is **not** applied (see `.chezmoiignore`). Roverspaces and claude-sync manage `~/.claude/` there, and the settings here (pinned model, interactive system prompt) would get in the way of unattended sessions.
+- Everything else (zsh, themes, zoxide, LSP servers) is applied as usual.
+
+`setup.sh` does not stop on the first error: a failed step prints a `warning:` line and the rest of the setup still runs.
+
 ## Connect from the Claude Code desktop app over SSH
 
 New Codespaces get new names, so the host entries that `gh codespace ssh --config` writes change every time. Instead, run this once on your Mac:
