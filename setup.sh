@@ -108,11 +108,10 @@ if [ "$(uname -s)" = "Linux" ]; then
     fi
 
     # Playwright without its browsers: recordings use the Chrome already in the image
-    # (/opt/google/chrome/chrome). Playwright still needs its own ffmpeg to record.
+    # (/opt/google/chrome/chrome). Current versions record without their own ffmpeg.
     if ! command -v playwright-core >/dev/null 2>&1; then
         npm i -g playwright-core || warn "playwright-core install failed"
     fi
-    playwright-core install ffmpeg || warn "Playwright ffmpeg install failed"
 
     # A full ffmpeg on PATH to convert recordings to mp4: the system one if sudo works,
     # otherwise the static build from imageio-ffmpeg in its own venv.

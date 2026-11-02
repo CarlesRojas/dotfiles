@@ -8,7 +8,7 @@ Personal dotfiles for Roverspaces, GitHub Codespaces and local machines.
 - **Oh My Zsh** — with zsh-autosuggestions, zsh-syntax-highlighting, and zoxide
 - **Custom ZSH theme** — powerline-style prompt: `[time] [path] [git branch]` (pastel macaron palette)
 
-- **Agent tooling for Roverspaces** — `pre-commit`, Playwright (using the image's Chrome) with its ffmpeg, and a full `ffmpeg` for mp4 conversion, so `/implement` can commit with the repo's hooks and record the local app
+- **Agent tooling for Roverspaces** — `pre-commit`, Playwright (using the image's Chrome), and a full `ffmpeg` for mp4 conversion, so `/implement` can commit with the repo's hooks and record the local app
 - **`dc-worktree`** — points the dev stack's `web` container at the current git worktree (`dc-worktree up`), and back to the main checkout (`dc-worktree release`). A lock lets only one worktree hold `web` at a time; others wait their turn. `dc-worktree status` shows what it serves and who holds it
 
 ## Setup
