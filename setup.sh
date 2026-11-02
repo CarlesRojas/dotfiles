@@ -91,3 +91,40 @@ if [ "$(uname -s)" = "Linux" ]; then
         curl -fsSL https://t3.codes/install.sh | sh || warn "T3 Code server install failed"
     fi
 fi
+
+# Agent tooling for Roverspaces / Codespaces (Linux only): what /implement needs to
+# commit with the repo's hooks and to record videos and screenshots of the local app.
+if [ "$(uname -s)" = "Linux" ]; then
+    # pre-commit, so the web repo's git hooks run (also from worktrees) and nobody
+    # needs --no-verify.
+    if ! command -v pre-commit >/dev/null 2>&1; then
+        if command -v uv >/dev/null 2>&1; then
+            uv tool install pre-commit || warn "pre-commit install failed"
+        else
+            python3 -m pip install --user pre-commit \
+                || python3 -m pip install --user --break-system-packages pre-commit \
+                || warn "pre-commit install failed"
+        fi
+    fi
+
+    # Playwright without its browsers: recordings use the Chrome already in the image
+    # (/opt/google/chrome/chrome). Playwright still needs its own ffmpeg to record.
+    if ! command -v playwright-core >/dev/null 2>&1; then
+        npm i -g playwright-core || warn "playwright-core install failed"
+    fi
+    playwright-core install ffmpeg || warn "Playwright ffmpeg install failed"
+
+    # A full ffmpeg on PATH to convert recordings to mp4: the system one if sudo works,
+    # otherwise the static build from imageio-ffmpeg in its own venv.
+    if ! command -v ffmpeg >/dev/null 2>&1; then
+        if ! { sudo -n apt-get update -qq && sudo -n apt-get install -y -qq ffmpeg; }; then
+            FFMPEG_VENV="$HOME/.local/share/imageio-ffmpeg"
+            if python3 -m venv "$FFMPEG_VENV" && "$FFMPEG_VENV/bin/pip" install -q imageio-ffmpeg; then
+                ln -sf "$("$FFMPEG_VENV/bin/python" -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" \
+                    "$HOME/.local/bin/ffmpeg" || warn "could not link ffmpeg"
+            else
+                warn "ffmpeg install failed"
+            fi
+        fi
+    fi
+fi

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Point the dev stack's `web` container at a git worktree, so the local app
+# (http://localhost:8001) serves that worktree's code, then hand it back.
+#
+# `dc up` always uses the main checkout: the stack binds fixed host ports, so only
+# one `web` container can exist. This recreates just that container from the
+# worktree's compose files under the main project name, with the repo's
+# docker-compose.worktree.yml override (secrets cache and static files from main).
+#
+# Only one worktree can hold `web` at a time. A lock serializes threads: `up`
+# waits for it (or fails with --no-wait) and `release` frees it and points `web`
+# back at the main checkout. Always run `release` when done.
+#
+#   dc-worktree up [--no-wait]   serve the current worktree
+#   dc-worktree release          give `web` back to the main checkout
+#   dc-worktree status           show what `web` serves and who holds the lock
+set -euo pipefail
+
+MAIN=/workspaces/web
+LOCK=/tmp/dc-worktree.lock
+STALE_SECONDS=$((45 * 60))
+WAIT_SECONDS=$((30 * 60))
+
+die() { echo "dc-worktree: $*" >&2; exit 1; }
+
+worktree_root() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git checkout"
+  [ "$top" != "$MAIN" ] || die "you are in the main checkout; run this from a worktree"
+  echo "$top"
+}
+
+lock_owner() { cat "$LOCK/owner" 2>/dev/null || true; }
+
+lock_age() {
+  local since
+  since=$(cat "$LOCK/since" 2>/dev/null || echo 0)
+  echo $(( $(date +%s) - since ))
+}
+
+take_lock() {
+  local me=$1 wait=$2 waited=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    if [ "$(lock_owner)" = "$me" ]; then
+      date +%s > "$LOCK/since"
+      return 0
+    fi
+    if [ "$(lock_age)" -gt "$STALE_SECONDS" ]; then
+      echo "dc-worktree: lock held by $(lock_owner) for over $((STALE_SECONDS / 60)) min, taking it" >&2
+      rm -rf "$LOCK"
+      continue
+    fi
+    [ "$wait" = true ] || die "web is in use by $(lock_owner); try again later or drop --no-wait"
+    [ "$waited" -lt "$WAIT_SECONDS" ] || die "gave up after $((WAIT_SECONDS / 60)) min waiting for $(lock_owner)"
+    [ "$waited" -gt 0 ] || echo "dc-worktree: web is in use by $(lock_owner), waiting..." >&2
+    sleep 10
+    waited=$((waited + 10))
+  done
+  echo "$me" > "$LOCK/owner"
+  date +%s > "$LOCK/since"
+}
+
+compose_web() {
+  local root=$1; shift
+  local files=(-f "$root/docker-compose.yml" -f "$root/docker-compose.dev.yml" -f "$root/docker-compose.dev.codespaces.yml")
+  if [ "$root" != "$MAIN" ]; then
+    files+=(-f "$MAIN/docker-compose.worktree.yml")
+    export ROVER_WEB_MAIN_DIR="$MAIN"
+  fi
+  if [ "${ENABLE_MCP:-}" = "1" ] && [ -f "$root/docker-compose.mcp.yml" ]; then
+    files+=(-f "$root/docker-compose.mcp.yml")
+  fi
+  docker compose -p web --project-directory "$root" "${files[@]}" "$@"
+}
+
+served_dir() {
+  local id
+  id=$(docker compose -p web ps -q web 2>/dev/null | head -n1)
+  [ -n "$id" ] || { echo "(web is not running)"; return; }
+  docker inspect -f '{{range .Mounts}}{{if eq .Destination "/web"}}{{.Source}}{{end}}{{end}}' "$id"
+}
+
+cmd_up() {
+  local wait=true
+  [ "${1:-}" = "--no-wait" ] && wait=false
+  local root
+  root=$(worktree_root)
+  for f in docker-compose.yml docker-compose.dev.yml docker-compose.dev.codespaces.yml; do
+    [ -f "$root/$f" ] || die "$root/$f is missing; this branch is too old for dc-worktree"
+  done
+  take_lock "$root" "$wait"
+  # Gitignored, only present in the main checkout; compose reads them from the project dir.
+  for f in .env .env_id; do
+    [ -f "$MAIN/$f" ] && [ ! -e "$root/$f" ] && cp "$MAIN/$f" "$root/$f"
+  done
+  compose_web "$root" up -d --no-deps --force-recreate web
+  echo "dc-worktree: web now serves $(served_dir)"
+  echo "dc-worktree: run 'dc-worktree release' when you are done"
+}
+
+cmd_release() {
+  local owner
+  owner=$(lock_owner)
+  local me=""
+  me=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  if [ -n "$owner" ] && [ -n "$me" ] && [ "$me" != "$MAIN" ] && [ "$owner" != "$me" ]; then
+    die "the lock belongs to $owner, not this worktree; not touching it"
+  fi
+  compose_web "$MAIN" up -d --no-deps --force-recreate web
+  rm -rf "$LOCK"
+  echo "dc-worktree: web serves $(served_dir) again"
+}
+
+cmd_status() {
+  echo "web serves: $(served_dir)"
+  if [ -d "$LOCK" ]; then
+    echo "lock: $(lock_owner) (for $(( $(lock_age) / 60 )) min)"
+  else
+    echo "lock: free"
+  fi
+}
+
+case "${1:-}" in
+  up) shift; cmd_up "$@" ;;
+  release|reset) cmd_release ;;
+  status) cmd_status ;;
+  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

@@ -8,6 +8,9 @@ Personal dotfiles for Roverspaces, GitHub Codespaces and local machines.
 - **Oh My Zsh** — with zsh-autosuggestions, zsh-syntax-highlighting, and zoxide
 - **Custom ZSH theme** — powerline-style prompt: `[time] [path] [git branch]` (pastel macaron palette)
 
+- **Agent tooling for Roverspaces** — `pre-commit`, Playwright (using the image's Chrome) with its ffmpeg, and a full `ffmpeg` for mp4 conversion, so `/implement` can commit with the repo's hooks and record the local app
+- **`dc-worktree`** — points the dev stack's `web` container at the current git worktree (`dc-worktree up`), and back to the main checkout (`dc-worktree release`). A lock lets only one worktree hold `web` at a time; others wait their turn. `dc-worktree status` shows what it serves and who holds it
+
 ## Setup
 
 ### GitHub Codespaces
@@ -75,6 +78,7 @@ dotfiles/
 ├── setup-ssh.sh                          # Run once on the Mac: stable `ssh codespace` alias
 ├── dot_zshrc                             → ~/.zshrc
 ├── dot_bashrc                            → ~/.bashrc
+├── dot_local/bin/executable_dc-worktree  → ~/.local/bin/dc-worktree
 ├── .chezmoiignore                        # Keeps README.md and the setup scripts out of ~
 ├── dot_oh-my-bash/custom/themes/carles/
 │   └── carles.theme.sh                   → ~/.oh-my-bash/custom/themes/carles/
