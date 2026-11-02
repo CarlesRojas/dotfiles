@@ -79,7 +79,12 @@ served_dir() {
   local id
   id=$(docker compose -p web ps -q web 2>/dev/null | head -n1)
   [ -n "$id" ] || { echo "(web is not running)"; return; }
-  docker inspect -f '{{range .Mounts}}{{if eq .Destination "/web"}}{{.Source}}{{end}}{{end}}' "$id"
+  # `web` has several bind mounts (source subfolders, plus the secrets cache and
+  # static files from main), so report the checkout most of them come from.
+  local root
+  root=$(docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$id" \
+    | grep -oE '^/workspaces/[^/]+' | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')
+  echo "${root:-(unknown)}"
 }
 
 cmd_up() {
