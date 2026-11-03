@@ -5,6 +5,7 @@
 //   await cursor.click(page, locator);      // glide to the element, pause, click
 //   await cursor.fill(page, locator, text); // glide, click, type at a readable pace
 //   await cursor.moveTo(page, locator);     // glide only (also accepts {x, y})
+//   await cursor.screenshot(page, 'shot.png', locator); // 1280x720 view of locator
 //
 // The pointer is an arrow like the OS one; a click shows a slow ripple (1 s) that
 // keeps playing if the click loads another page of the same site.
@@ -152,4 +153,40 @@ async function fill(page, target, text) {
   await page.waitForTimeout(PAUSE_AFTER_CLICK_MS);
 }
 
-module.exports = { install, moveTo, click, fill, DURATION_MS, STEPS };
+// A desktop screenshot: always exactly the 1280x720 (16:9) visible area, never the
+// whole scrolling page. With a target, it is scrolled into view first (near the top
+// of the screen, with some page above it for context).
+const SHOT_WIDTH = 1280;
+const SHOT_HEIGHT = 720;
+
+async function screenshot(page, path, target) {
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width !== SHOT_WIDTH || viewport.height !== SHOT_HEIGHT) {
+    await page.setViewportSize({ width: SHOT_WIDTH, height: SHOT_HEIGHT });
+  }
+  if (target) {
+    await target.scrollIntoViewIfNeeded();
+    await target.evaluate((el) => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo(0, Math.max(0, top - 120));
+    });
+    await page.waitForTimeout(300);
+  }
+  // The cursor belongs in videos, not in screenshots.
+  const toggle = (show) => page.evaluate((visible) => {
+    const el = document.getElementById('__pr_media_arrow');
+    if (el) el.style.visibility = visible ? 'visible' : 'hidden';
+  }, show).catch(() => {});
+  await toggle(false);
+  try {
+    await page.screenshot({
+      path,
+      fullPage: false,
+      clip: { x: 0, y: 0, width: SHOT_WIDTH, height: SHOT_HEIGHT },
+    });
+  } finally {
+    await toggle(true);
+  }
+}
+
+module.exports = { install, moveTo, click, fill, screenshot, DURATION_MS, STEPS };
