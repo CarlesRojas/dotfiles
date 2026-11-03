@@ -6,14 +6,16 @@
 //   await cursor.fill(page, locator, text); // glide, click, type at a readable pace
 //   await cursor.moveTo(page, locator);     // glide only (also accepts {x, y})
 //
+// The pointer is an arrow like the OS one; a click shows a slow ripple (1 s) that
+// keeps playing if the click loads another page of the same site.
 // Every glide takes the same time and the same number of equal steps, whatever the
-// distance or direction: constant speed, no easing, no CSS transition. The dot is
+// distance or direction: constant speed, no easing, no CSS transition. The arrow is
 // placed exactly where the mouse is at each step.
 
 const DURATION_MS = 500;
 const STEPS = 30;
 const PAUSE_BEFORE_CLICK_MS = 300;
-const PAUSE_AFTER_CLICK_MS = 600;
+const PAUSE_AFTER_CLICK_MS = 1100; // lets the 1 s click ripple finish
 const TYPE_DELAY_MS = 60;
 
 const positions = new WeakMap();
@@ -21,59 +23,88 @@ const positions = new WeakMap();
 function drawCursor() {
   if (window.__prMediaCursor) return;
   window.__prMediaCursor = true;
-  const SIZE = 18;
-  const PRESSED = 26;
-  const NORMAL_COLOR = 'rgba(255, 60, 60, 0.6)';
-  const PRESSED_COLOR = 'rgba(255, 190, 0, 0.85)';
-  let last = 'translate(-100px, -100px)';
-  const setSize = (dot, size, color) => {
-    Object.assign(dot.style, {
-      width: `${size}px`,
-      height: `${size}px`,
-      margin: `-${size / 2}px 0 0 -${size / 2}px`,
-      background: color,
-    });
+  const RIPPLE_MS = 1000;
+  const RIPPLE_SIZE = 96;
+  const KEY = '__pr_media_cursor';
+  const ARROW =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="30" viewBox="0 0 22 30">' +
+    '<path d="M1 1 L1 24 L7 18.5 L11 28 L15 26.3 L11 17 L19 17 Z" ' +
+    'fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
+  // Last position and an in-flight click survive navigations within the tab, so the
+  // arrow shows where it was and a click's ripple keeps playing on the next page.
+  const load = () => {
+    try { return JSON.parse(sessionStorage.getItem(KEY)) || {}; } catch (e) { return {}; }
   };
-  // Re-created whenever it is missing (a page can replace the whole document).
-  const ensureDot = () => {
-    let dot = document.getElementById('__pr_media_cursor');
-    if (dot || !document.documentElement) return dot;
-    dot = document.createElement('div');
-    dot.id = '__pr_media_cursor';
-    Object.assign(dot.style, {
-      position: 'fixed',
-      left: '0',
-      top: '0',
-      borderRadius: '50%',
-      border: '2px solid #fff',
-      boxShadow: '0 0 3px rgba(0, 0, 0, 0.6)',
-      pointerEvents: 'none',
-      zIndex: '2147483647',
-      transform: last,
-    });
-    setSize(dot, SIZE, NORMAL_COLOR);
-    document.documentElement.appendChild(dot);
-    return dot;
+  const save = (state) => {
+    try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
   };
+  let state = load();
+
+  const ensure = (id, build) => {
+    let el = document.getElementById(id);
+    if (el || !document.documentElement) return el;
+    el = build();
+    el.id = id;
+    document.documentElement.appendChild(el);
+    return el;
+  };
+  const arrow = () => ensure('__pr_media_arrow', () => {
+    const el = document.createElement('div');
+    el.innerHTML = ARROW;
+    Object.assign(el.style, {
+      position: 'fixed', left: '0', top: '0', width: '22px', height: '30px',
+      pointerEvents: 'none', zIndex: '2147483647',
+      filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45))',
+      transform: state.x === undefined ? 'translate(-100px, -100px)' : `translate(${state.x}px, ${state.y}px)`,
+    });
+    return el;
+  });
+  const ripple = (x, y, elapsed) => {
+    if (!document.documentElement) return;
+    const el = document.createElement('div');
+    Object.assign(el.style, {
+      position: 'fixed', left: `${x}px`, top: `${y}px`,
+      width: `${RIPPLE_SIZE}px`, height: `${RIPPLE_SIZE}px`,
+      margin: `-${RIPPLE_SIZE / 2}px 0 0 -${RIPPLE_SIZE / 2}px`,
+      borderRadius: '50%', border: '4px solid rgba(255, 140, 0, 1)',
+      background: 'rgba(255, 140, 0, 0.22)', boxSizing: 'border-box',
+      pointerEvents: 'none', zIndex: '2147483646',
+    });
+    document.documentElement.appendChild(el);
+    const anim = el.animate(
+      [
+        { transform: 'scale(0.1)', opacity: 1 },
+        { transform: 'scale(0.7)', opacity: 0.85, offset: 0.6 },
+        { transform: 'scale(1)', opacity: 0 },
+      ],
+      { duration: RIPPLE_MS, easing: 'linear', fill: 'forwards' },
+    );
+    anim.currentTime = elapsed;
+    anim.onfinish = () => el.remove();
+  };
+
   window.addEventListener('mousemove', (e) => {
-    last = `translate(${e.clientX}px, ${e.clientY}px)`;
-    const dot = ensureDot();
-    if (dot) dot.style.transform = last;
+    state = { ...state, x: e.clientX, y: e.clientY };
+    save(state);
+    const el = arrow();
+    if (el) el.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
   }, true);
-  window.addEventListener('mousedown', () => {
-    const dot = ensureDot();
-    if (dot) setSize(dot, PRESSED, PRESSED_COLOR);
+  window.addEventListener('mousedown', (e) => {
+    state = { ...state, x: e.clientX, y: e.clientY, clickAt: Date.now() };
+    save(state);
+    ripple(e.clientX, e.clientY, 0);
   }, true);
-  window.addEventListener('mouseup', () => {
-    setTimeout(() => {
-      const dot = ensureDot();
-      if (dot) setSize(dot, SIZE, NORMAL_COLOR);
-    }, 150);
-  }, true);
+
+  const onReady = () => {
+    arrow();
+    const elapsed = state.clickAt ? Date.now() - state.clickAt : RIPPLE_MS;
+    if (elapsed < RIPPLE_MS && state.x !== undefined) ripple(state.x, state.y, elapsed);
+  };
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', ensureDot);
+    document.addEventListener('DOMContentLoaded', onReady);
   } else {
-    ensureDot();
+    onReady();
   }
 }
 
