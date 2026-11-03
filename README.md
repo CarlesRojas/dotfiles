@@ -11,6 +11,8 @@ Personal dotfiles for Roverspaces, GitHub Codespaces and local machines.
 - **Agent tooling for Roverspaces** — `pre-commit`, Playwright (using the image's Chrome), and a full `ffmpeg` for mp4 conversion, so `/implement` can commit with the repo's hooks and record the local app
 - **`dc-worktree`** — points the dev stack's `web` container at the current git worktree (`dc-worktree up`), and back to the main checkout (`dc-worktree release`). A lock lets only one worktree hold `web` at a time; others wait their turn. `dc-worktree status` shows what it serves and who holds it
 
+- **`pr-media/cursor.js`**: visible mouse cursor for Playwright recordings. Every move takes the same time (0.5 s) in 30 equal steps, at constant speed, and clicks show as a short color change
+
 ## Setup
 
 ### GitHub Codespaces
@@ -79,6 +81,7 @@ dotfiles/
 ├── dot_zshrc                             → ~/.zshrc
 ├── dot_bashrc                            → ~/.bashrc
 ├── dot_local/bin/executable_dc-worktree  → ~/.local/bin/dc-worktree
+├── dot_local/share/pr-media/cursor.js    → ~/.local/share/pr-media/cursor.js
 ├── .chezmoiignore                        # Keeps README.md and the setup scripts out of ~
 ├── dot_oh-my-bash/custom/themes/carles/
 │   └── carles.theme.sh                   → ~/.oh-my-bash/custom/themes/carles/
