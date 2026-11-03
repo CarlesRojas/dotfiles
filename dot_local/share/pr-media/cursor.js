@@ -5,7 +5,7 @@
 //   await cursor.click(page, locator);      // glide to the element, pause, click
 //   await cursor.fill(page, locator, text); // glide, click, type at a readable pace
 //   await cursor.moveTo(page, locator);     // glide only (also accepts {x, y})
-//   await cursor.screenshot(page, 'shot.png', locator); // 1280x720 view of locator
+//   await cursor.screenshot(page, 'shot.png', locator); // current viewport, locator in view
 //
 // The pointer is an arrow like the OS one; a click shows a slow ripple (1 s) that
 // keeps playing if the click loads another page of the same site.
@@ -153,17 +153,12 @@ async function fill(page, target, text) {
   await page.waitForTimeout(PAUSE_AFTER_CLICK_MS);
 }
 
-// A desktop screenshot: always exactly the 1280x720 (16:9) visible area, never the
-// whole scrolling page. With a target, it is scrolled into view first (near the top
-// of the screen, with some page above it for context).
-const SHOT_WIDTH = 1280;
-const SHOT_HEIGHT = 720;
-
+// A screenshot of exactly what the browser window shows at its current viewport size
+// (1280x720 desktop by default, or whatever the flow set, e.g. a narrow mobile width
+// to check responsiveness), never the whole scrolling page. With a target, it is
+// scrolled into view first (near the top, with some page above it for context).
 async function screenshot(page, path, target) {
-  const viewport = page.viewportSize();
-  if (!viewport || viewport.width !== SHOT_WIDTH || viewport.height !== SHOT_HEIGHT) {
-    await page.setViewportSize({ width: SHOT_WIDTH, height: SHOT_HEIGHT });
-  }
+  const viewport = page.viewportSize() || { width: 1280, height: 720 };
   if (target) {
     await target.scrollIntoViewIfNeeded();
     await target.evaluate((el) => {
@@ -182,7 +177,7 @@ async function screenshot(page, path, target) {
     await page.screenshot({
       path,
       fullPage: false,
-      clip: { x: 0, y: 0, width: SHOT_WIDTH, height: SHOT_HEIGHT },
+      clip: { x: 0, y: 0, width: viewport.width, height: viewport.height },
     });
   } finally {
     await toggle(true);
