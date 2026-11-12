@@ -100,7 +100,8 @@ cmd_up() {
 
   stop_metro
   log="$LOCK/metro.log"
-  (cd "$app" && CI=1 nohup pnpm start --port "$PORT" >"$log" 2>&1 &)
+  # Detach every fd so a caller piping `up` (e.g. into tail) gets EOF when `up` returns.
+  (cd "$app" && CI=1 exec nohup pnpm start --port "$PORT" </dev/null >"$log" 2>&1 &) </dev/null >/dev/null 2>&1
   for _ in $(seq 1 90); do
     serving && break
     sleep 2
