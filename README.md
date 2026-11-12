@@ -13,6 +13,7 @@ Personal dotfiles for Roverspaces, GitHub Codespaces and local machines.
 
 - **`pr-media/cursor.js`**: visible mouse cursor for Playwright recordings, and `screenshot()` for screenshots of the visible browser window at its current viewport size (never the whole scrolling page). Every move takes the same time (0.5 s) in 30 equal steps, at constant speed, and clicks show as a short color change
 - **`pr-media/finalize-video.sh`**: converts a Playwright `.webm` recording to an H.264 `.mp4` played at 1.5x, raising the compression until it is under 10 MB (`finalize-video.sh in.webm out.mp4`)
+- **`pr-media-upload`** (Mac): uploads a PR's videos and screenshots from the Roverspace's `~/pr-media/{KEY}/` to GitHub through a Chrome profile logged in to GitHub, and puts the `user-attachments` URLs into the PR's `<!-- pr-media:{file} -->` cells. Needs a global `playwright-core` (`npm i -g playwright-core`) and a one-time `pr-media-upload --login`. Install or update it on the Mac with `curl -fsSL https://raw.githubusercontent.com/CarlesRojas/dotfiles/main/dot_local/bin/executable_pr-media-upload -o ~/.local/bin/pr-media-upload && chmod 755 ~/.local/bin/pr-media-upload`
 
 ## Setup
 
@@ -82,6 +83,7 @@ dotfiles/
 ├── dot_zshrc                             → ~/.zshrc
 ├── dot_bashrc                            → ~/.bashrc
 ├── dot_local/bin/executable_dc-worktree  → ~/.local/bin/dc-worktree
+├── dot_local/bin/executable_pr-media-upload → ~/.local/bin/pr-media-upload (used on the Mac)
 ├── dot_local/share/pr-media/cursor.js    → ~/.local/share/pr-media/cursor.js
 ├── dot_local/share/pr-media/executable_finalize-video.sh → ~/.local/share/pr-media/finalize-video.sh
 ├── .chezmoiignore                        # Keeps README.md and the setup scripts out of ~
