@@ -65,6 +65,12 @@ stop_forward() {
   [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
 }
 
+forward_running() {
+  local pid
+  pid=$(cat "$LOCK/forward.pid" 2>/dev/null || true)
+  [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null && kill -0 "$pid" 2>/dev/null
+}
+
 port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
 cmd_up() {
@@ -75,7 +81,7 @@ cmd_up() {
     || die "rover.local does not resolve to 127.0.0.1; add '127.0.0.1 rover.local' to /etc/hosts"
   take_lock "$key"
 
-  if ! kill -0 "$(cat "$LOCK/forward.pid" 2>/dev/null || echo 0)" 2>/dev/null; then
+  if ! forward_running; then
     for p in 8001 8081; do port_busy "$p" && die "port $p is already in use on the Mac; stop what listens there"; done
     nohup coder port-forward "$target" --tcp 8001:8001 --tcp 8081:8081 >"$LOCK/forward.log" 2>&1 &
     echo $! > "$LOCK/forward.pid"
@@ -88,7 +94,7 @@ cmd_up() {
     [ "$metro" = "packager-status:running" ] && [ "$api" != "000" ] && break
     sleep 2
   done
-  [ "$metro" = "packager-status:running" ] || die "Metro does not answer on :8081; run 'metro-worktree up' on the Roverspace (forward log: $LOCK/forward.log)"
+  [ "$metro" = "packager-status:running" ] || die "Metro does not answer on :8081; run 'metro-worktree up' on the Roverspace. Forward log: $(tail -5 "$LOCK/forward.log" 2>/dev/null)"
   [ "$api" != "000" ] || die "the local app does not answer on :8001; run 'dc-worktree up' on the Roverspace"
   mkdir -p "$(media_dir "$key")"
   echo "pr-media-ios: Metro and the API of $target are forwarded to localhost:8081 and rover.local:8001"
@@ -159,6 +165,7 @@ cmd_down() {
   local udid
   udid=$(cat "$LOCK/udid" 2>/dev/null || true)
   [ -n "$udid" ] && xcrun simctl status_bar "$udid" clear 2>/dev/null || true
+  cp "$LOCK/forward.log" /tmp/pr-media-ios-last-forward.log 2>/dev/null || true
   rm -rf "$LOCK" "$(media_dir "$key")"
   echo "pr-media-ios: forward stopped, lock free"
 }
@@ -166,7 +173,7 @@ cmd_down() {
 cmd_status() {
   if [ -d "$LOCK" ]; then
     echo "lock: $(lock_owner) (for $(( $(lock_age) / 60 )) min)"
-    echo "forward: $(kill -0 "$(cat "$LOCK/forward.pid" 2>/dev/null || echo 0)" 2>/dev/null && echo running || echo stopped)"
+    echo "forward: $(forward_running && echo running || echo stopped)"
   else
     echo "lock: free"
   fi
