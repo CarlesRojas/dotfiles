@@ -9,7 +9,9 @@
 # debug build, fix the status bar, build fixtures, convert and copy the files.
 #
 #   pr-media-ios up <KEY> <owner/workspace.agent>  lock, forward :8081 and :8001, check both answer
-#   pr-media-ios install <KEY> <UDID> [--fresh]    install master's debug build if missing; clean status bar
+#   pr-media-ios install <KEY> <UDID> [--fresh]    install master's debug build if missing (logging in to
+#                                                  AWS through the browser if needed; exit 3 if that fails);
+#                                                  clean status bar
 #   pr-media-ios fixture <KEY> <slug> <entrypoint> [options-json]
 #                                                  build a fixture on the Roverspace's local stack, print its deeplink
 #   pr-media-ios save <KEY> <file> <name>          .mp4/.mov -> 1.5x mp4 named <name>; .png copied as <name>
@@ -28,6 +30,7 @@ STALE_SECONDS=$((45 * 60))
 WAIT_SECONDS=$((30 * 60))
 API=http://rover.local:8001
 FINALIZE="$HOME/.local/share/pr-media/finalize-video.sh"
+AWS_PROFILE_NAME=${PR_MEDIA_AWS_PROFILE:-dev}
 
 die() { echo "pr-media-ios: $*" >&2; exit 1; }
 media_dir() { echo "$HOME/pr-media-ios/$1"; }
@@ -103,12 +106,26 @@ cmd_up() {
   echo "  rover://change-api-host?apiHost=$API"
 }
 
+aws_ok() { aws sts get-caller-identity --profile "$AWS_PROFILE_NAME" --no-cli-pager >/dev/null 2>&1; }
+
+# rover-cli needs AWS to download the build, and its own login prompt needs a TTY.
+# `aws sso login` opens the approval page in the browser and blocks until it is approved.
+ensure_aws() {
+  aws_ok && return 0
+  echo "pr-media-ios: the AWS session ($AWS_PROFILE_NAME) has expired; approve the AWS login page that opens in the browser on this Mac"
+  osascript -e 'display notification "Approve the AWS login in your browser so the simulator recording can continue" with title "pr-media-ios" sound name "Glass"' >/dev/null 2>&1 || true
+  aws sso login --profile "$AWS_PROFILE_NAME" </dev/null || true
+  aws_ok || { echo "pr-media-ios: AWS login needed: run 'raws profile $AWS_PROFILE_NAME' on the Mac" >&2; exit 3; }
+  echo "pr-media-ios: AWS login done"
+}
+
 cmd_install() {
   local key=${1:-} udid=${2:-} fresh=${3:-}
   [ -n "$key" ] && [ -n "$udid" ] || die "usage: pr-media-ios install <KEY> <UDID> [--fresh]"
   own_lock "$key"
   xcrun simctl list devices booted | grep -q "$udid" || die "simulator $udid is not booted; open it with device_open first"
   if [ "$fresh" = "--fresh" ] || ! xcrun simctl get_app_container "$udid" "$APP" >/dev/null 2>&1; then
+    ensure_aws
     echo "pr-media-ios: installing master's debug build on $udid"
     rover-cli mobile fetch ios --type debug --udid "$udid" </dev/null
   else
@@ -187,5 +204,5 @@ case "${1:-}" in
   push) shift; cmd_push "$@" ;;
   down) shift; cmd_down "$@" ;;
   status) cmd_status ;;
-  *) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
