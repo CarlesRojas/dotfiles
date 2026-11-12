@@ -1,0 +1,184 @@
+#!/bin/bash
+# Runs on the Mac. Prepares an iOS Simulator to record a Roverspace worktree's
+# React Native code for a PR, and moves the finished media to the Roverspace's
+# ~/pr-media/<KEY>/, where pr-media-upload picks them up.
+#
+# The agent drives the simulator itself (T3 device tools / agent-device: open,
+# deep links, taps, `record start|stop`, `screenshot`). This helper only does
+# what those tools cannot: forward the Roverspace's Metro and API, install the
+# debug build, fix the status bar, build fixtures, convert and copy the files.
+#
+#   pr-media-ios up <KEY> <owner/workspace.agent>  lock, forward :8081 and :8001, check both answer
+#   pr-media-ios install <KEY> <UDID> [--fresh]    install master's debug build if missing; clean status bar
+#   pr-media-ios fixture <KEY> <slug> <entrypoint> [options-json]
+#                                                  build a fixture on the Roverspace's local stack, print its deeplink
+#   pr-media-ios save <KEY> <file> <name>          .mp4/.mov -> 1.5x mp4 named <name>; .png copied as <name>
+#   pr-media-ios push <KEY>                        copy the saved media to roverspace:~/pr-media/<KEY>/
+#   pr-media-ios down <KEY>                        stop the forward, reset the status bar, free the lock
+#   pr-media-ios status                            who holds the lock, what is forwarded
+#
+# Only one PR can hold the simulator setup at a time. A lock not refreshed for
+# 45 min (any command refreshes it) is taken as abandoned.
+set -euo pipefail
+
+APP=com.rover.Rover-com
+HOST=${PR_MEDIA_HOST:-roverspace}
+LOCK=/tmp/pr-media-ios.lock
+STALE_SECONDS=$((45 * 60))
+WAIT_SECONDS=$((30 * 60))
+API=http://rover.local:8001
+FINALIZE="$HOME/.local/share/pr-media/finalize-video.sh"
+
+die() { echo "pr-media-ios: $*" >&2; exit 1; }
+media_dir() { echo "$HOME/pr-media-ios/$1"; }
+lock_owner() { cat "$LOCK/owner" 2>/dev/null || true; }
+lock_age() { echo $(( $(date +%s) - $(cat "$LOCK/since" 2>/dev/null || echo 0) )); }
+
+take_lock() {
+  local me=$1 waited=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    if [ "$(lock_owner)" = "$me" ]; then date +%s > "$LOCK/since"; return 0; fi
+    if [ "$(lock_age)" -gt "$STALE_SECONDS" ]; then
+      echo "pr-media-ios: lock held by $(lock_owner) for over $((STALE_SECONDS / 60)) min, taking it" >&2
+      stop_forward
+      rm -rf "$LOCK"
+      continue
+    fi
+    [ "$waited" -lt "$WAIT_SECONDS" ] || die "gave up after $((WAIT_SECONDS / 60)) min waiting for $(lock_owner)"
+    [ "$waited" -gt 0 ] || echo "pr-media-ios: the simulator setup is in use by $(lock_owner), waiting..." >&2
+    sleep 10
+    waited=$((waited + 10))
+  done
+  echo "$me" > "$LOCK/owner"
+  date +%s > "$LOCK/since"
+}
+
+# Every command but `up` needs the lock held by this KEY.
+own_lock() {
+  [ "$(lock_owner)" = "$1" ] || die "the lock is held by '$(lock_owner)', not $1; run 'pr-media-ios up $1 ...' first"
+  date +%s > "$LOCK/since"
+}
+
+stop_forward() {
+  local pid
+  pid=$(cat "$LOCK/forward.pid" 2>/dev/null || true)
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+}
+
+port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+
+cmd_up() {
+  local key=${1:-} target=${2:-}
+  [ -n "$key" ] && [ -n "$target" ] || die "usage: pr-media-ios up <KEY> <owner/workspace.agent>"
+  command -v coder >/dev/null || die "the coder CLI is missing: brew install coder"
+  dscacheutil -q host -a name rover.local | grep -q '127.0.0.1' \
+    || die "rover.local does not resolve to 127.0.0.1; add '127.0.0.1 rover.local' to /etc/hosts"
+  take_lock "$key"
+
+  if ! kill -0 "$(cat "$LOCK/forward.pid" 2>/dev/null || echo 0)" 2>/dev/null; then
+    for p in 8001 8081; do port_busy "$p" && die "port $p is already in use on the Mac; stop what listens there"; done
+    nohup coder port-forward "$target" --tcp 8001:8001 --tcp 8081:8081 >"$LOCK/forward.log" 2>&1 &
+    echo $! > "$LOCK/forward.pid"
+  fi
+
+  local metro="" api="" i
+  for i in $(seq 1 30); do
+    metro=$(curl -s -m 3 http://localhost:8081/status || true)
+    api=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "$API/" || true)
+    [ "$metro" = "packager-status:running" ] && [ "$api" != "000" ] && break
+    sleep 2
+  done
+  [ "$metro" = "packager-status:running" ] || die "Metro does not answer on :8081; run 'metro-worktree up' on the Roverspace (forward log: $LOCK/forward.log)"
+  [ "$api" != "000" ] || die "the local app does not answer on :8001; run 'dc-worktree up' on the Roverspace"
+  mkdir -p "$(media_dir "$key")"
+  echo "pr-media-ios: Metro and the API of $target are forwarded to localhost:8081 and rover.local:8001"
+  echo "pr-media-ios: point the app at them with these deep links, then relaunch it:"
+  echo "  rover://set-metro-url?host=rover.local&port=8081"
+  echo "  rover://change-api-host?apiHost=$API"
+}
+
+cmd_install() {
+  local key=${1:-} udid=${2:-} fresh=${3:-}
+  [ -n "$key" ] && [ -n "$udid" ] || die "usage: pr-media-ios install <KEY> <UDID> [--fresh]"
+  own_lock "$key"
+  xcrun simctl list devices booted | grep -q "$udid" || die "simulator $udid is not booted; open it with device_open first"
+  if [ "$fresh" = "--fresh" ] || ! xcrun simctl get_app_container "$udid" "$APP" >/dev/null 2>&1; then
+    echo "pr-media-ios: installing master's debug build on $udid"
+    rover-cli mobile fetch ios --type debug --udid "$udid" </dev/null
+  else
+    echo "pr-media-ios: $APP is already installed on $udid (pass --fresh to reinstall)"
+  fi
+  xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+    --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+  echo "$udid" > "$LOCK/udid"
+}
+
+cmd_fixture() {
+  local key=${1:-} slug=${2:-} entry=${3:-} opts=${4:-'{}'}
+  [ -n "$key" ] && [ -n "$slug" ] && [ -n "$entry" ] || die "usage: pr-media-ios fixture <KEY> <slug> <entrypoint> [options-json]"
+  own_lock "$key"
+  FIXTURES_NO_SPIN=1 rover-cli fixtures run "$slug" -s "$API" -o "$opts" -m -e "$entry" </dev/null
+}
+
+cmd_save() {
+  local key=${1:-} file=${2:-} name=${3:-}
+  [ -n "$key" ] && [ -n "$file" ] && [ -n "$name" ] || die "usage: pr-media-ios save <KEY> <file> <name>"
+  own_lock "$key"
+  [ -f "$file" ] || die "$file does not exist"
+  local out
+  out="$(media_dir "$key")/$name"
+  case "$file" in
+    *.mp4|*.mov|*.MP4|*.MOV)
+      [ -x "$FINALIZE" ] || die "$FINALIZE is missing; install it from the dotfiles"
+      "$FINALIZE" "$file" "$out" ;;
+    *.png|*.PNG) cp "$file" "$out"; echo "$out" ;;
+    *) die "unsupported file type: $file" ;;
+  esac
+}
+
+cmd_push() {
+  local key=${1:-}
+  [ -n "$key" ] || die "usage: pr-media-ios push <KEY>"
+  own_lock "$key"
+  local dir
+  dir=$(media_dir "$key")
+  [ -n "$(ls -A "$dir" 2>/dev/null)" ] || die "no media saved in $dir"
+  # scp over SFTP starts in /workspaces/web on the Roverspace and does not expand ~.
+  tar -C "$dir" -cf - . | ssh "$HOST" "mkdir -p ~/pr-media/$key && tar -C ~/pr-media/$key -xf -"
+  echo "pr-media-ios: copied to $HOST:~/pr-media/$key/:"
+  ls -1 "$dir"
+}
+
+cmd_down() {
+  local key=${1:-}
+  [ -n "$key" ] || die "usage: pr-media-ios down <KEY>"
+  if [ -d "$LOCK" ] && [ "$(lock_owner)" != "$key" ]; then
+    die "the lock belongs to $(lock_owner), not $key; not touching it"
+  fi
+  stop_forward
+  local udid
+  udid=$(cat "$LOCK/udid" 2>/dev/null || true)
+  [ -n "$udid" ] && xcrun simctl status_bar "$udid" clear 2>/dev/null || true
+  rm -rf "$LOCK" "$(media_dir "$key")"
+  echo "pr-media-ios: forward stopped, lock free"
+}
+
+cmd_status() {
+  if [ -d "$LOCK" ]; then
+    echo "lock: $(lock_owner) (for $(( $(lock_age) / 60 )) min)"
+    echo "forward: $(kill -0 "$(cat "$LOCK/forward.pid" 2>/dev/null || echo 0)" 2>/dev/null && echo running || echo stopped)"
+  else
+    echo "lock: free"
+  fi
+}
+
+case "${1:-}" in
+  up) shift; cmd_up "$@" ;;
+  install) shift; cmd_install "$@" ;;
+  fixture) shift; cmd_fixture "$@" ;;
+  save) shift; cmd_save "$@" ;;
+  push) shift; cmd_push "$@" ;;
+  down) shift; cmd_down "$@" ;;
+  status) cmd_status ;;
+  *) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

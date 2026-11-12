@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# Run the React Native Metro bundler on port 8081 from the current git worktree,
+# so a debug build of the app (on the Mac's simulator, through `coder
+# port-forward`) loads that worktree's JS, then stop it.
+#
+# Only one worktree can hold port 8081 at a time. A lock serializes threads: `up`
+# waits for it (or fails with --no-wait) and `release` stops Metro and frees it.
+# Always run `release` when done. A lock not refreshed for 30 min is taken as
+# abandoned; `refresh` (or `up` again) from the holding worktree refreshes it.
+#
+# Metro runs in CI mode (no file watching): after changing JS, run `up` again
+# from the same worktree to restart it.
+#
+#   metro-worktree up [--no-wait]   install deps if missing, start Metro, wait until it serves
+#   metro-worktree release          stop Metro and free the lock
+#   metro-worktree refresh          keep this worktree's lock fresh without touching Metro
+#   metro-worktree status           show who holds the lock and whether Metro answers
+set -euo pipefail
+
+MAIN=/workspaces/web
+PORT=8081
+LOCK=/tmp/metro-worktree.lock
+STALE_SECONDS=$((30 * 60))
+WAIT_SECONDS=$((30 * 60))
+
+die() { echo "metro-worktree: $*" >&2; exit 1; }
+
+worktree_root() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git checkout"
+  [ "$top" != "$MAIN" ] || die "you are in the main checkout; run this from a worktree"
+  echo "$top"
+}
+
+lock_owner() { cat "$LOCK/owner" 2>/dev/null || true; }
+
+lock_age() {
+  local since
+  since=$(cat "$LOCK/since" 2>/dev/null || echo 0)
+  echo $(( $(date +%s) - since ))
+}
+
+take_lock() {
+  local me=$1 wait=$2 waited=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    if [ "$(lock_owner)" = "$me" ]; then
+      date +%s > "$LOCK/since"
+      return 0
+    fi
+    if [ "$(lock_age)" -gt "$STALE_SECONDS" ]; then
+      echo "metro-worktree: lock held by $(lock_owner) for over $((STALE_SECONDS / 60)) min, taking it" >&2
+      stop_metro
+      rm -rf "$LOCK"
+      continue
+    fi
+    [ "$wait" = true ] || die "Metro is in use by $(lock_owner); try again later or drop --no-wait"
+    [ "$waited" -lt "$WAIT_SECONDS" ] || die "gave up after $((WAIT_SECONDS / 60)) min waiting for $(lock_owner)"
+    [ "$waited" -gt 0 ] || echo "metro-worktree: Metro is in use by $(lock_owner), waiting..." >&2
+    sleep 10
+    waited=$((waited + 10))
+  done
+  echo "$me" > "$LOCK/owner"
+  date +%s > "$LOCK/since"
+}
+
+listener_pid() { ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true; }
+
+# Expo detaches the node process from `pnpm start`, so stop whatever listens on the port.
+stop_metro() {
+  local pid
+  pid=$(listener_pid)
+  [ -n "$pid" ] || return 0
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 10); do
+    [ -n "$(listener_pid)" ] || return 0
+    sleep 1
+  done
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+serving() { [ "$(curl -s -m 2 "http://localhost:$PORT/status" 2>/dev/null)" = "packager-status:running" ]; }
+
+cmd_up() {
+  local wait=true
+  [ "${1:-}" = "--no-wait" ] && wait=false
+  local root app log
+  root=$(worktree_root)
+  app="$root/src/frontend/reactNativeApp"
+  [ -d "$app" ] || die "$app is missing"
+
+  if [ -n "$(listener_pid)" ] && [ ! -d "$LOCK" ]; then
+    die "something not started by metro-worktree listens on port $PORT; stop it first"
+  fi
+  take_lock "$root" "$wait"
+
+  if [ ! -d "$root/src/frontend/node_modules" ] || [ ! -d "$app/node_modules" ]; then
+    echo "metro-worktree: installing JS dependencies in $root/src/frontend" >&2
+    (cd "$root/src/frontend" && pnpm install --frozen-lockfile >/dev/null)
+  fi
+
+  stop_metro
+  log="$LOCK/metro.log"
+  (cd "$app" && CI=1 nohup pnpm start --port "$PORT" >"$log" 2>&1 &)
+  for _ in $(seq 1 90); do
+    serving && break
+    sleep 2
+  done
+  serving || { tail -20 "$log" >&2; die "Metro did not come up; log above"; }
+
+  # Build the iOS bundle once so the first app launch does not time out on a cold cache.
+  curl -s -m 600 -o /dev/null "http://localhost:$PORT/index.bundle?platform=ios&dev=true&minify=false" \
+    || echo "metro-worktree: warming the iOS bundle failed; the app will build it on first launch" >&2
+  echo "metro-worktree: Metro serves $root on :$PORT (log: $log)"
+  echo "metro-worktree: run 'metro-worktree release' when you are done"
+}
+
+cmd_release() {
+  local owner me
+  owner=$(lock_owner)
+  me=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  if [ -n "$owner" ] && [ -n "$me" ] && [ "$me" != "$MAIN" ] && [ "$owner" != "$me" ]; then
+    die "the lock belongs to $owner, not this worktree; not touching it"
+  fi
+  stop_metro
+  rm -rf "$LOCK"
+  echo "metro-worktree: Metro stopped, lock free"
+}
+
+cmd_refresh() {
+  local me
+  me=$(worktree_root)
+  [ "$(lock_owner)" = "$me" ] || die "the lock is held by '$(lock_owner)', not this worktree"
+  date +%s > "$LOCK/since"
+}
+
+cmd_status() {
+  if serving; then echo "metro: running on :$PORT"; else echo "metro: not running"; fi
+  if [ -d "$LOCK" ]; then
+    echo "lock: $(lock_owner) (for $(( $(lock_age) / 60 )) min)"
+  else
+    echo "lock: free"
+  fi
+}
+
+case "${1:-}" in
+  up) shift; cmd_up "$@" ;;
+  release|reset) cmd_release ;;
+  refresh) cmd_refresh ;;
+  status) cmd_status ;;
+  *) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac
