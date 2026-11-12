@@ -12,6 +12,7 @@ Personal dotfiles for Roverspaces, GitHub Codespaces and local machines.
 - **`dc-worktree`** — points the dev stack's `web` container at the current git worktree (`dc-worktree up`), and back to the main checkout (`dc-worktree release`). A lock lets only one worktree hold `web` at a time; others wait their turn. `dc-worktree status` shows what it serves and who holds it
 
 - **`pr-media/cursor.js`**: visible mouse cursor for Playwright recordings, and `screenshot()` for screenshots of the visible browser window at its current viewport size (never the whole scrolling page). Every move takes the same time (0.5 s) in 30 equal steps, at constant speed, and clicks show as a short color change
+- **`pr-media/finalize-video.sh`**: converts a Playwright `.webm` recording to an H.264 `.mp4` played at 1.5x, raising the compression until it is under 10 MB (`finalize-video.sh in.webm out.mp4`)
 
 ## Setup
 
@@ -82,6 +83,7 @@ dotfiles/
 ├── dot_bashrc                            → ~/.bashrc
 ├── dot_local/bin/executable_dc-worktree  → ~/.local/bin/dc-worktree
 ├── dot_local/share/pr-media/cursor.js    → ~/.local/share/pr-media/cursor.js
+├── dot_local/share/pr-media/executable_finalize-video.sh → ~/.local/share/pr-media/finalize-video.sh
 ├── .chezmoiignore                        # Keeps README.md and the setup scripts out of ~
 ├── dot_oh-my-bash/custom/themes/carles/
 │   └── carles.theme.sh                   → ~/.oh-my-bash/custom/themes/carles/
