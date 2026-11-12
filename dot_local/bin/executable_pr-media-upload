@@ -1,0 +1,121 @@
+#!/usr/bin/env node
+// Runs on the Mac. Copies a PR's media from the Roverspace, uploads each file
+// to GitHub through a Chrome profile that is logged in to GitHub, and puts the
+// resulting user-attachments URLs into the PR description.
+//
+//   pr-media-upload --login                  log in once (opens Chrome)
+//   pr-media-upload <TICKET-KEY> <PR-URL>    upload and fill the ### Result cells
+//
+// The PR description marks each cell with <!-- pr-media:<file name> -->.
+// Uploads go through the PR's new-comment box, which is never submitted.
+
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const require = createRequire(import.meta.url);
+const globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+const { chromium } = require(path.join(globalRoot, "playwright-core"));
+
+const HOST = process.env.PR_MEDIA_HOST || "roverspace";
+const PROFILE = path.join(os.homedir(), ".local/share/pr-media/chrome-profile");
+const ASSET_URL = /https:\/\/github\.com\/user-attachments\/assets\/[0-9a-f-]+/g;
+
+function launch(headless) {
+  return chromium.launchPersistentContext(PROFILE, {
+    channel: "chrome",
+    headless,
+    viewport: { width: 1280, height: 900 },
+  });
+}
+
+async function login() {
+  const context = await launch(false);
+  const page = context.pages()[0] ?? (await context.newPage());
+  await page.goto("https://github.com/login");
+  console.log("Log in to GitHub (and Rover SSO if asked), then close the window.");
+  await new Promise((resolve) => context.on("close", resolve));
+}
+
+async function upload(page, file) {
+  const box = page.locator('textarea[name="comment[body]"]').last();
+  await box.waitFor({ timeout: 20_000 });
+  await box.fill("");
+  const input = page
+    .locator("form", { has: box })
+    .locator('input[type="file"]')
+    .first();
+  await input.setInputFiles(file);
+  await page.waitForFunction(
+    (el) => /user-attachments\/assets\//.test(el.value),
+    await box.elementHandle(),
+    { timeout: 120_000 },
+  );
+  const url = (await box.inputValue()).match(ASSET_URL)?.[0];
+  await box.fill("");
+  if (!url) throw new Error(`no asset URL for ${file}`);
+  return url;
+}
+
+async function main() {
+  const [key, prUrl] = process.argv.slice(2);
+  if (key === "--login") return login();
+  if (!key || !prUrl) {
+    console.error("usage: pr-media-upload <TICKET-KEY> <PR-URL> | --login");
+    process.exit(2);
+  }
+
+  const dir = path.join(os.homedir(), "pr-media", key);
+  fs.mkdirSync(dir, { recursive: true });
+  // scp over SFTP starts in /workspaces/web on the Roverspace and does not expand ~.
+  const tarball = execFileSync("ssh", [HOST, `tar -C ~/pr-media/${key} -cf - .`], {
+    maxBuffer: 512 * 1024 * 1024,
+  });
+  execFileSync("tar", ["-C", dir, "-xf", "-"], { input: tarball });
+  const files = fs.readdirSync(dir).filter((f) => /\.(mp4|png|jpe?g|gif|mov)$/i.test(f));
+  if (!files.length) throw new Error(`no media in ${HOST}:~/pr-media/${key}`);
+
+  const context = await launch(true);
+  const page = await context.newPage();
+  await page.goto(prUrl);
+  if (page.url().includes("/login")) {
+    await context.close();
+    throw new Error("the Chrome profile is not logged in: run pr-media-upload --login");
+  }
+
+  const urls = {};
+  for (const f of files) {
+    urls[f] = await upload(page, path.join(dir, f));
+    console.log(`${f} -> ${urls[f]}`);
+  }
+  await context.close();
+
+  let body = execFileSync("gh", ["pr", "view", prUrl, "--json", "body", "-q", ".body"], {
+    encoding: "utf8",
+  });
+  const missing = [];
+  for (const [f, url] of Object.entries(urls)) {
+    const marker = `<!-- pr-media:${f} -->`;
+    // GitHub embeds a bare video URL as a player, but a bare image URL only as a link.
+    const cell = /\.(png|jpe?g|gif)$/i.test(f) ? `![${f}](${url})` : url;
+    if (body.includes(marker)) body = body.replace(marker, cell);
+    else missing.push(f);
+  }
+  const bodyFile = path.join(dir, ".body.md");
+  fs.writeFileSync(bodyFile, body);
+  execFileSync("gh", ["pr", "edit", prUrl, "--body-file", bodyFile], { stdio: "inherit" });
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  if (missing.length) {
+    console.log("No cell marker for these files, so they are not in the description:");
+    for (const f of missing) console.log(`  ${f}: ${urls[f]}`);
+  }
+  console.log("Done.");
+}
+
+main().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});
