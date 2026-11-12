@@ -12,6 +12,7 @@
 #   pr-media-ios install <KEY> <UDID> [--fresh]    install master's debug build if missing (logging in to
 #                                                  AWS through the browser if needed; exit 3 if that fails);
 #                                                  clean status bar
+#   pr-media-ios setup-done <KEY>                  record that this install is pointed at the API
 #   pr-media-ios fixture <KEY> <slug> <entrypoint> [options-json]
 #                                                  build a fixture on the Roverspace's local stack, print its deeplink
 #   pr-media-ios save <KEY> <file> <name>          .mp4/.mov -> 1.5x mp4 named <name>; .png copied as <name>
@@ -29,6 +30,7 @@ LOCK=/tmp/pr-media-ios.lock
 STALE_SECONDS=$((45 * 60))
 WAIT_SECONDS=$((30 * 60))
 API=http://rover.local:8001
+STATE_DIR=$HOME/.local/state/pr-media-ios
 FINALIZE="$HOME/.local/share/pr-media/finalize-video.sh"
 AWS_PROFILE_NAME=${PR_MEDIA_AWS_PROFILE:-dev}
 
@@ -101,9 +103,8 @@ cmd_up() {
   [ "$api" != "000" ] || die "the local app does not answer on :8001; run 'dc-worktree up' on the Roverspace"
   mkdir -p "$(media_dir "$key")"
   echo "pr-media-ios: Metro and the API of $target are forwarded to localhost:8081 and rover.local:8001"
-  echo "pr-media-ios: point the app at them with these deep links, then relaunch it:"
-  echo "  rover://set-metro-url?host=rover.local&port=8081"
-  echo "  rover://change-api-host?apiHost=$API"
+  echo "pr-media-ios: the simulator app loads Metro from localhost:8081 by default"
+  echo "pr-media-ios: API deep link for the one-time setup: rover://change-api-host?apiHost=$API"
 }
 
 aws_ok() { aws sts get-caller-identity --profile "$AWS_PROFILE_NAME" --no-cli-pager >/dev/null 2>&1; }
@@ -132,15 +133,36 @@ cmd_install() {
     echo "pr-media-ios: $APP is already installed on $udid (pass --fresh to reinstall)"
   fi
   xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
-    --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+    --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100
   echo "$udid" > "$LOCK/udid"
+  if [ "$(cat "$STATE_DIR/$udid" 2>/dev/null)" = "$(app_data "$udid")" ]; then
+    echo "pr-media-ios: one-time app setup needed: no"
+  else
+    echo "pr-media-ios: one-time app setup needed: yes"
+  fi
+}
+
+# The data container path changes on every reinstall, so it identifies the install.
+app_data() { xcrun simctl get_app_container "$1" "$APP" data 2>/dev/null || true; }
+
+cmd_setup_done() {
+  local key=${1:-}
+  [ -n "$key" ] || die "usage: pr-media-ios setup-done <KEY>"
+  own_lock "$key"
+  local udid
+  udid=$(cat "$LOCK/udid" 2>/dev/null) || die "run 'pr-media-ios install' first"
+  mkdir -p "$STATE_DIR"
+  app_data "$udid" > "$STATE_DIR/$udid"
+  echo "pr-media-ios: setup recorded for this install"
 }
 
 cmd_fixture() {
   local key=${1:-} slug=${2:-} entry=${3:-} opts=${4:-'{}'}
   [ -n "$key" ] && [ -n "$slug" ] && [ -n "$entry" ] || die "usage: pr-media-ios fixture <KEY> <slug> <entrypoint> [options-json]"
   own_lock "$key"
-  FIXTURES_NO_SPIN=1 rover-cli fixtures run "$slug" -s "$API" -o "$opts" -m -e "$entry" </dev/null
+  # rover-cli sometimes crashes on its first call in a fresh shell; one retry covers it.
+  FIXTURES_NO_SPIN=1 rover-cli fixtures run "$slug" -s "$API" -o "$opts" -m -e "$entry" </dev/null \
+    || FIXTURES_NO_SPIN=1 rover-cli fixtures run "$slug" -s "$API" -o "$opts" -m -e "$entry" </dev/null
 }
 
 cmd_save() {
@@ -167,7 +189,7 @@ cmd_push() {
   dir=$(media_dir "$key")
   [ -n "$(ls -A "$dir" 2>/dev/null)" ] || die "no media saved in $dir"
   # scp over SFTP starts in /workspaces/web on the Roverspace and does not expand ~.
-  tar -C "$dir" -cf - . | ssh "$HOST" "mkdir -p ~/pr-media/$key && tar -C ~/pr-media/$key -xf -"
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$dir" -cf - . | ssh "$HOST" "mkdir -p ~/pr-media/$key && tar -C ~/pr-media/$key -xf -"
   echo "pr-media-ios: copied to $HOST:~/pr-media/$key/:"
   ls -1 "$dir"
 }
@@ -199,10 +221,11 @@ cmd_status() {
 case "${1:-}" in
   up) shift; cmd_up "$@" ;;
   install) shift; cmd_install "$@" ;;
+  setup-done) shift; cmd_setup_done "$@" ;;
   fixture) shift; cmd_fixture "$@" ;;
   save) shift; cmd_save "$@" ;;
   push) shift; cmd_push "$@" ;;
   down) shift; cmd_down "$@" ;;
   status) cmd_status ;;
-  *) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
