@@ -21,6 +21,7 @@ const { chromium } = require(path.join(globalRoot, "playwright-core"));
 
 const HOST = process.env.PR_MEDIA_HOST || "roverspace";
 const PROFILE = path.join(os.homedir(), ".local/share/pr-media/chrome-profile");
+const SSO_URL = "https://github.com/orgs/roverdotcom/sso";
 const ASSET_URL = /https:\/\/github\.com\/user-attachments\/assets\/[0-9a-f-]+/g;
 
 function launch(headless) {
@@ -34,8 +35,8 @@ function launch(headless) {
 async function login() {
   const context = await launch(false);
   const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto("https://github.com/login");
-  console.log("Log in to GitHub (and Rover SSO if asked), then close the window.");
+  await page.goto(`https://github.com/login?return_to=${encodeURIComponent(SSO_URL)}`);
+  console.log("Log in to GitHub, press Continue on the Rover single sign-on page, then close the window.");
   await new Promise((resolve) => context.on("close", resolve));
 }
 
@@ -59,7 +60,20 @@ async function upload(page, file) {
   return url;
 }
 
+// A private repo shows a 404 when logged out and an SSO page without Rover SSO, so neither has a comment box.
+async function sessionProblem(page) {
+  const meta = page.locator('meta[name="user-login"]');
+  const login = (await meta.count()) ? await meta.getAttribute("content") : "";
+  if (!login) return "the Chrome profile is not logged in to GitHub";
+  if (/^Sign in to /.test(await page.title())) return "the Chrome profile has no Rover SSO session";
+  return null;
+}
+
 async function main() {
+  if (process.platform !== "darwin") {
+    console.error("pr-media-upload runs on the Mac: this shell is on another machine.");
+    process.exit(2);
+  }
   const [key, prUrl] = process.argv.slice(2);
   if (key === "--login") return login();
   if (!key || !prUrl) {
@@ -80,9 +94,10 @@ async function main() {
   const context = await launch(true);
   const page = await context.newPage();
   await page.goto(prUrl);
-  if (page.url().includes("/login")) {
+  const problem = await sessionProblem(page);
+  if (problem) {
     await context.close();
-    throw new Error("the Chrome profile is not logged in: run pr-media-upload --login");
+    throw new Error(`${problem}: run pr-media-upload --login`);
   }
 
   const urls = {};
