@@ -44,10 +44,8 @@ async function upload(page, file) {
   const box = page.locator('textarea[name="comment[body]"]').last();
   await box.waitFor({ timeout: 20_000 });
   await box.fill("");
-  const input = page
-    .locator("form", { has: box })
-    .locator('input[type="file"]')
-    .first();
+  // Inline review replies are forms with their own comment box, so take the form around this one.
+  const input = box.locator("xpath=ancestor::form[1]").locator('input[type="file"]').first();
   await input.setInputFiles(file);
   await page.waitForFunction(
     (el) => /user-attachments\/assets\//.test(el.value),
